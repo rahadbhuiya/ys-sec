@@ -1,32 +1,31 @@
 fn headers_inspect() {
     let url = require_env("YS_SEC_A", "URL")
-    if y.is_nil(url) { return }
+    if y.is_nil(url) || url == "" { return }
 
-    let r = y.http.get(url)
-
-    if y.is_nil(r) {
-        y.println("HTTP request failed: " + y.net.last_error())
+    let raw = process.spawn("powershell.exe -NoProfile -NonInteractive -File bin/headers-helper.ps1")
+    if y.is_nil(raw) || y.trim(raw) == "" {
+        y.println("HTTP request failed")
         return
     }
 
-    let status = y.map.get(r, "status")
-    let headers = y.map.get(r, "headers")
+    let lines = y.split(raw, "\n")
+    var status = ""
+    var error = ""
 
-    y.println("Status: " + y.str(status))
-
-    for k in y.map.keys(headers) {
-        y.println(k + ": " + y.str(y.map.get(headers, k)))
-    }
-
-    if has_flag("YS_SEC_JSON") {
-        let report = {
-            url: url,
-            status: status,
-            headers: headers
+    for line in lines {
+        let t = y.trim(line)
+        if y.starts_with(t, "STATUS=") {
+            status = y.substr(t, 7, y.len(t))
+        } else if y.starts_with(t, "HEADER=") {
+            y.println(y.substr(t, 7, y.len(t)))
+        } else if y.starts_with(t, "ERROR=") {
+            error = y.substr(t, 6, y.len(t))
         }
-
-        let encoded = y.json.stringify(report)
-        y.println(encoded)
-        save_if_requested(encoded)
     }
+
+    if error != "" {
+        y.println("HTTP request failed: " + error)
+        return
+    }
+    y.println("Status: " + status)
 }
